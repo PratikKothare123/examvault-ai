@@ -4,22 +4,22 @@ import './Login.css';
 
 const DEMO_CREDENTIALS = {
   Student: {
-    email: 'student.cse23@sbjit.edu.in',
-    password: 'StudentPassword123!',
+    email: 'student@sbjit.edu.in',
+    password: 'ExamVault@123',
     role: 'Student',
-    fullName: 'Pratik Kothare'
+    fullName: 'Student User'
   },
   Faculty: {
-    email: 'faculty.cse@sbjit.edu.in',
-    password: 'FacultyPassword123!',
+    email: 'faculty@sbjit.edu.in',
+    password: 'ExamVault@123',
     role: 'Faculty',
-    fullName: 'Prof. R. K. Sharma'
+    fullName: 'Faculty User'
   },
   Admin: {
-    email: 'admin.cse@sbjit.edu.in',
-    password: 'AdminPassword123!',
+    email: 'admin@sbjit.edu.in',
+    password: 'ExamVault@123',
     role: 'Admin',
-    fullName: 'System Administrator'
+    fullName: 'Admin User'
   }
 };
 
@@ -84,20 +84,7 @@ export default function Login({ onLoginSuccess }) {
       }
     } catch (err) {
       console.error('Auth Exception:', err);
-      // Fallback sandbox authentication if server connection fails
-      const enteredName = fullName || cleanEmail.split('@')[0].replace('.', ' ');
-      const mockUser = { 
-        fullName: enteredName, 
-        email: cleanEmail, 
-        role, 
-        department,
-        reputationPoints: role === 'Student' ? 10 : 0
-      };
-
-      const mockToken = 'mock_jwt_token_' + Date.now();
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      onLoginSuccess(mockUser, mockToken);
+      setErrorMsg('Unable to connect to server. Please ensure the backend server is running on port 5000.');
     } finally {
       setLoading(false);
     }

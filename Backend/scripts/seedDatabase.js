@@ -36,7 +36,7 @@ const USER_IDS = {
   ADMIN: new mongoose.Types.ObjectId('66a000000000000000000030')
 };
 
-const SUB_IDS = {
+const SUBJECT_IDS = {
   CS701: new mongoose.Types.ObjectId('66b000000000000000000001'),
   CS702: new mongoose.Types.ObjectId('66b000000000000000000002'),
   CS703: new mongoose.Types.ObjectId('66b000000000000000000003'),
@@ -44,16 +44,18 @@ const SUB_IDS = {
   CS705: new mongoose.Types.ObjectId('66b000000000000000000005')
 };
 
+const PASSWORD = process.env.SEED_PASSWORD || 'ExamVault@123';
+
 const seedDatabase = async () => {
   console.log('--- STARTING EXAMVAULT DATABASE SEEDING ---');
   console.log('URI loaded from .env:', process.env.MONGO_URI);
-  
+
   try {
     await mongoose.connect(MONGO_URI);
     console.log('Connected Host:', mongoose.connection.host);
     console.log('Connected Database Name:', mongoose.connection.name);
 
-    // Clear existing data
+    // Clear ALL existing data
     await Promise.all([
       Department.deleteMany({}),
       Subject.deleteMany({}),
@@ -62,149 +64,183 @@ const seedDatabase = async () => {
       Paper.deleteMany({}),
       Notification.deleteMany({})
     ]);
-    console.log('Cleared existing collections.');
+    console.log('Cleared ALL existing collections (users, departments, subjects, papers, notifications).');
 
-    // 1. Seed Updated Department Catalog
-    const cseDept = await Department.create({ _id: DEPT_IDS.CSE, deptCode: 'CSE', deptName: 'Computer Science & Engineering' });
-    await Department.create({ _id: DEPT_IDS.ETC, deptCode: 'ETC', deptName: 'Electronics & Telecommunication Engineering' });
-    await Department.create({ _id: DEPT_IDS.ME, deptCode: 'ME', deptName: 'Mechanical Engineering' });
-    await Department.create({ _id: DEPT_IDS.AIML, deptCode: 'AIML', deptName: 'Artificial Intelligence & Machine Learning' });
-    await Department.create({ _id: DEPT_IDS.AIDS, deptCode: 'AIDS', deptName: 'Artificial Intelligence & Data Science' });
-    await Department.create({ _id: DEPT_IDS.IT, deptCode: 'IT', deptName: 'Information Technology' });
-    await Department.create({ _id: DEPT_IDS.EE, deptCode: 'EE', deptName: 'Electrical Engineering' });
+    // 1. Seed 7 Official Departments
+    const departments = await Department.insertMany([
+      { _id: DEPT_IDS.CSE, deptCode: 'CSE', deptName: 'Computer Science & Engineering' },
+      { _id: DEPT_IDS.ETC, deptCode: 'ETC', deptName: 'Electronics & Telecommunication Engineering' },
+      { _id: DEPT_IDS.ME, deptCode: 'ME', deptName: 'Mechanical Engineering' },
+      { _id: DEPT_IDS.AIML, deptCode: 'AIML', deptName: 'Artificial Intelligence & Machine Learning' },
+      { _id: DEPT_IDS.AIDS, deptCode: 'AIDS', deptName: 'Artificial Intelligence & Data Science' },
+      { _id: DEPT_IDS.IT, deptCode: 'IT', deptName: 'Information Technology' },
+      { _id: DEPT_IDS.EE, deptCode: 'EE', deptName: 'Electrical Engineering' }
+    ]);
+    console.log(`Seeded ${departments.length} departments.`);
 
-    console.log('Seeded 7 Official College Departments with fixed Mongo ObjectIds.');
+    // 2. Hash passwords
+    const hashedPassword = await bcrypt.hash(PASSWORD, 10);
 
-    // 2. Hash default passwords
-    const studentPass = await bcrypt.hash('StudentPassword123!', 10);
-    const facultyPass = await bcrypt.hash('FacultyPassword123!', 10);
-    const adminPass = await bcrypt.hash('AdminPassword123!', 10);
+    // 3. Seed EXACTLY 3 Predefined Users (Student, Faculty, Admin)
+    const users = await User.insertMany([
+      {
+        _id: USER_IDS.STUDENT,
+        fullName: 'Student User',
+        email: 'student@sbjit.edu.in',
+        password: hashedPassword,
+        role: ROLES.STUDENT,
+        department: DEPT_IDS.CSE,
+        reputationPoints: 0
+      },
+      {
+        _id: USER_IDS.FACULTY,
+        fullName: 'Faculty User',
+        email: 'faculty@sbjit.edu.in',
+        password: hashedPassword,
+        role: ROLES.FACULTY,
+        department: DEPT_IDS.CSE,
+        reputationPoints: 0
+      },
+      {
+        _id: USER_IDS.ADMIN,
+        fullName: 'Admin User',
+        email: 'admin@sbjit.edu.in',
+        password: hashedPassword,
+        role: ROLES.ADMIN,
+        department: DEPT_IDS.CSE,
+        reputationPoints: 0
+      }
+    ]);
+    console.log(`Seeded ${users.length} predefined users (Student, Faculty, Admin).`);
 
-    // 3. Seed Users
-    const student = await User.create({
-      _id: USER_IDS.STUDENT,
-      fullName: 'Pratik Kothare',
-      email: 'student.cse23@sbjit.edu.in',
-      password: studentPass,
-      role: ROLES.STUDENT,
-      department: cseDept._id,
-      reputationPoints: 20
-    });
+    // 4. Seed CSE Subjects (Semester 5 & 7 for demo)
+    const subjects = await Subject.insertMany([
+      {
+        _id: SUBJECT_IDS.CS701,
+        subjectCode: 'CS701',
+        subjectName: 'Compiler Design',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 7',
+        year: '4th Year',
+        branch: 'CSE',
+        assignedFaculty: [USER_IDS.FACULTY]
+      },
+      {
+        _id: SUBJECT_IDS.CS702,
+        subjectCode: 'CS702',
+        subjectName: 'Cyber Security',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 7',
+        year: '4th Year',
+        branch: 'CSE',
+        assignedFaculty: [USER_IDS.FACULTY]
+      },
+      {
+        _id: SUBJECT_IDS.CS703,
+        subjectCode: 'CS703',
+        subjectName: 'Blockchain Technology',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 7',
+        year: '4th Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      {
+        _id: SUBJECT_IDS.CS704,
+        subjectCode: 'CS704',
+        subjectName: 'Software Engineering & Quality Assurance',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 8',
+        year: '4th Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      {
+        _id: SUBJECT_IDS.CS705,
+        subjectCode: 'CS705',
+        subjectName: 'Business Intelligence',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 8',
+        year: '4th Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      // Additional semester 5 subjects for CSE
+      {
+        _id: new mongoose.Types.ObjectId('66b000000000000000000006'),
+        subjectCode: 'CS501',
+        subjectName: 'Database Management Systems',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 5',
+        year: '3rd Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      {
+        _id: new mongoose.Types.ObjectId('66b000000000000000000007'),
+        subjectCode: 'CS502',
+        subjectName: 'Operating Systems',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 5',
+        year: '3rd Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      {
+        _id: new mongoose.Types.ObjectId('66b000000000000000000008'),
+        subjectCode: 'CS503',
+        subjectName: 'Computer Networks',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 5',
+        year: '3rd Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      },
+      {
+        _id: new mongoose.Types.ObjectId('66b000000000000000000009'),
+        subjectCode: 'CS504',
+        subjectName: 'Software Engineering',
+        departmentId: DEPT_IDS.CSE,
+        semester: 'Semester 5',
+        year: '3rd Year',
+        branch: 'CSE',
+        assignedFaculty: []
+      }
+    ]);
+    console.log(`Seeded ${subjects.length} subjects.`);
 
-    const faculty = await User.create({
-      _id: USER_IDS.FACULTY,
-      fullName: 'Prof. R. K. Sharma',
-      email: 'faculty.cse@sbjit.edu.in',
-      password: facultyPass,
-      role: ROLES.FACULTY,
-      department: cseDept._id
-    });
-
-    const admin = await User.create({
-      _id: USER_IDS.ADMIN,
-      fullName: 'System Administrator',
-      email: 'admin.cse@sbjit.edu.in',
-      password: adminPass,
-      role: ROLES.ADMIN,
-      department: cseDept._id
-    });
-
-    // 4. Seed CSE Final Year Subjects with assigned faculty
-    const compilerSub = await Subject.create({
-      _id: SUB_IDS.CS701,
-      subjectCode: 'CS701',
-      subjectName: 'Compiler Design',
-      departmentId: cseDept._id,
-      semester: 'Semester 7',
-      year: '4th Year',
-      branch: 'CSE',
-      assignedFaculty: [faculty._id]
-    });
-
-    const cyberSub = await Subject.create({
-      _id: SUB_IDS.CS702,
-      subjectCode: 'CS702',
-      subjectName: 'Cyber Security',
-      departmentId: cseDept._id,
-      semester: 'Semester 7',
-      year: '4th Year',
-      branch: 'CSE',
-      assignedFaculty: [faculty._id]
-    });
-
-    await Subject.create({
-      _id: SUB_IDS.CS703,
-      subjectCode: 'CS703',
-      subjectName: 'Blockchain Technology',
-      departmentId: cseDept._id,
-      semester: 'Semester 7',
-      year: '4th Year',
-      branch: 'CSE',
-      assignedFaculty: []
-    });
-
-    await Subject.create({
-      _id: SUB_IDS.CS704,
-      subjectCode: 'CS704',
-      subjectName: 'Software Engineering & Quality Assurance',
-      departmentId: cseDept._id,
-      semester: 'Semester 8',
-      year: '4th Year',
-      branch: 'CSE',
-      assignedFaculty: []
-    });
-
-    await Subject.create({
-      _id: SUB_IDS.CS705,
-      subjectCode: 'CS705',
-      subjectName: 'Business Intelligence',
-      departmentId: cseDept._id,
-      semester: 'Semester 8',
-      year: '4th Year',
-      branch: 'CSE',
-      assignedFaculty: []
-    });
-
-    // 5. Seed Sample Paper & Notification
-    const samplePaper = await Paper.create({
-      uploadedBy: student._id,
-      departmentId: cseDept._id,
-      semester: 'Semester 7',
-      subjectId: compilerSub._id,
-      academicYear: '2024-2025',
-      paperYear: '2024',
-      examType: 'ESE',
-      fileUrl: 'https://res.cloudinary.com/demo/image/upload/v1/examvault/sample_compiler.pdf',
-      filePublicId: 'examvault_compiler_2024',
-      status: PAPER_STATUS.APPROVED,
-      verificationComments: 'Verified from official department copy',
-      verifiedBy: faculty._id,
-      verifiedAt: new Date()
-    });
-
-    await Notification.create({
-      recipientId: student._id,
-      paperId: samplePaper._id,
-      type: 'PAPER_APPROVED',
-      message: 'Your question paper for Compiler Design (CS701) ESE 2024-2025 has been approved by Prof. R. K. Sharma.'
-    });
+    // 5. Create FacultyAssignment records to mirror Subject.assignedFaculty
+    await FacultyAssignment.insertMany([
+      {
+        facultyUserId: USER_IDS.FACULTY,
+        subjectId: SUBJECT_IDS.CS701
+      },
+      {
+        facultyUserId: USER_IDS.FACULTY,
+        subjectId: SUBJECT_IDS.CS702
+      }
+    ]);
+    console.log('Created FacultyAssignment records.');
 
     console.log('\n======================================================');
     console.log('       EXAMVAULT PRE-SEEDED LOGIN CREDENTIALS        ');
     console.log('======================================================');
     console.log('Role    : Student');
-    console.log('Email   : student.cse23@sbjit.edu.in');
-    console.log('Password: StudentPassword123!\n');
+    console.log('Email   : student@sbjit.edu.in');
+    console.log('Password: ' + PASSWORD);
+    console.log('');
     console.log('Role    : Faculty');
-    console.log('Email   : faculty.cse@sbjit.edu.in');
-    console.log('Password: FacultyPassword123!\n');
+    console.log('Email   : faculty@sbjit.edu.in');
+    console.log('Password: ' + PASSWORD);
+    console.log('');
     console.log('Role    : Admin');
-    console.log('Email   : admin.cse@sbjit.edu.in');
-    console.log('Password: AdminPassword123!');
+    console.log('Email   : admin@sbjit.edu.in');
+    console.log('Password: ' + PASSWORD);
     console.log('======================================================\n');
 
   } catch (error) {
     console.error('Database seeding failed with error:', error);
+    process.exit(1);
   } finally {
     await mongoose.disconnect();
     console.log('Disconnected from database.');
@@ -213,3 +249,4 @@ const seedDatabase = async () => {
 };
 
 seedDatabase();
+

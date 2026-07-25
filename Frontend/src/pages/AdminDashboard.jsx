@@ -283,7 +283,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
 
     try {
       const formData = new FormData();
-      formData.append('paper', uploadFile);
+      formData.append('file', uploadFile);
       formData.append('departmentId', uploadDept);
       formData.append('semester', uploadSem);
       formData.append('subjectId', uploadSub);

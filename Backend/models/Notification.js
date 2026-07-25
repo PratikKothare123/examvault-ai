@@ -7,11 +7,17 @@ const notificationSchema = new mongoose.Schema({
     required: [true, 'Recipient reference is required'],
     index: true
   },
+  paperId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Paper',
+    default: null,
+    index: true
+  },
   type: {
     type: String,
     required: [true, 'Notification type is required'],
     enum: {
-      values: ['PAPER_APPROVED', 'PAPER_REJECTED'],
+      values: ['PAPER_APPROVED', 'PAPER_REJECTED', 'NEW_PENDING_PAPER', 'NO_FACULTY_ASSIGNED'],
       message: '{VALUE} is not a valid notification type'
     }
   },
