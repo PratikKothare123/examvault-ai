@@ -1,9 +1,9 @@
 import rateLimit from 'express-rate-limit';
 
-// Rate Limiter for Authentication (Registration & Login) - Max 5 attempts / 15 mins
+// Rate Limiter for Authentication - Generous limit during development
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: 200, // Higher limit for development testing
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -24,10 +24,10 @@ export const uploadLimiter = rateLimit({
   }
 });
 
-// General API Rate Limiter - Max 100 requests / 15 mins
+// General API Rate Limiter - Generous limit during development
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

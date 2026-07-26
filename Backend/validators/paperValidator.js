@@ -30,6 +30,9 @@ export const validatePaperMetadata = (req, res, next) => {
   if (!academicYear) {
     return next(new ApiError(400, 'Academic year is required.'));
   }
+  if (!/^\d{4}-\d{4}$/.test(academicYear)) {
+    return next(new ApiError(400, 'Invalid academic year format. Must be YYYY-YYYY.'));
+  }
 
   if (!examType) {
     return next(new ApiError(400, 'Exam type designation is required.'));

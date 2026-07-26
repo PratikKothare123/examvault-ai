@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { 
-  Search, RotateCcw, FileText, Calendar, Layers, Eye, Download, 
+  Search, RotateCcw, Calendar, Layers, Eye, Download, 
   X, Filter, ChevronDown, ChevronUp, Bell, 
-  CheckCircle2, AlertCircle, GraduationCap, Upload, Shield
+  CheckCircle2, AlertCircle, GraduationCap, Upload, Shield,
+  Trash2, CheckCheck, Loader2, Menu
 } from 'lucide-react';
+import PDFViewer from '../components/PDFViewer';
+import EmptyState from '../components/EmptyState';
+import ConfirmModal from '../components/ConfirmModal';
+import { downloadPaperFile } from '../utils/paperDownload';
 import './BrowsePapers.css';
 
-// Academic constants
 const SEMESTERS = [
   'Semester 1', 'Semester 2', 'Semester 3', 'Semester 4',
   'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'
@@ -14,7 +19,6 @@ const SEMESTERS = [
 const EXAM_TYPES = ['CAE-I', 'CAE-II', 'ESE'];
 const ACADEMIC_YEARS = ['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023'];
 
-// Fallback Official College Departments with valid 24-char Mongo ObjectIds
 const OFFICIAL_DEPARTMENTS = [
   { _id: '66a000000000000000000001', deptCode: 'CSE', deptName: 'Computer Science & Engineering' },
   { _id: '66a000000000000000000002', deptCode: 'ETC', deptName: 'Electronics & Telecommunication Engineering' },
@@ -34,7 +38,6 @@ const FALLBACK_SUBJECTS = [
 ];
 
 export default function BrowsePapers({ onSwitchToAdmin }) {
-  const [authToken, setAuthToken] = useState(localStorage.getItem('token') || '');
   const [departments, setDepartments] = useState(OFFICIAL_DEPARTMENTS);
   const [subjects, setSubjects] = useState([]);
   
@@ -44,12 +47,11 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
   const [academicYear, setAcademicYear] = useState('');
   const [selectedExamType, setSelectedExamType] = useState('');
 
-  // Mobile & Modal UI States
   const [showFiltersMobile, setShowFiltersMobile] = useState(true);
   const [previewPaper, setPreviewPaper] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  // Upload Form States
   const [uploadDept, setUploadDept] = useState('');
   const [uploadSem, setUploadSem] = useState('');
   const [uploadSub, setUploadSub] = useState('');
@@ -59,16 +61,21 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
   const [uploadSubjects, setUploadSubjects] = useState([]);
   const [uploading, setUploading] = useState(false);
 
-  // Notification States
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
+  const [clearAllLoading, setClearAllLoading] = useState(false);
 
-  // Retrieval list states
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch Departments on startup
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem('token') || '';
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }, []);
+
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
@@ -84,24 +91,97 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
     fetchDepartments();
   }, []);
 
-  // Fetch Notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
+    setNotifLoading(true);
     try {
-      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-      const response = await fetch('/api/v1/notifications', { headers });
+      const response = await fetch('/api/v1/notifications', { headers: getAuthHeaders() });
       const json = await response.json();
       if (json.success) {
-        setNotifications(json.data.notifications);
-        setUnreadCount(json.data.unreadCount);
+        setNotifications(json.data.notifications || []);
+        setUnreadCount((json.data.notifications || []).filter(n => !n.isRead).length);
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
+    } finally {
+      setNotifLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     fetchNotifications();
-  }, [authToken]);
+  }, [fetchNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await fetch('/api/v1/notifications/read-all', {
+        method: 'PATCH',
+        headers: getAuthHeaders()
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Error marking notifications as read:', err);
+    }
+  };
+
+  const handleOpenNotifDrawer = () => {
+    setShowNotifDrawer(true);
+    handleMarkAllRead();
+  };
+
+  const handleMarkRead = async (notifId) => {
+    try {
+      await fetch(`/api/v1/notifications/${notifId}/read`, {
+        method: 'PATCH',
+        headers: getAuthHeaders()
+      });
+      setNotifications(prev => prev.map(n => n._id === notifId ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Error marking notification read:', err);
+    }
+  };
+
+  const handleDeleteNotification = async (notifId) => {
+    try {
+      const response = await fetch(`/api/v1/notifications/${notifId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      const json = await response.json();
+      if (json.success) {
+        setNotifications(prev => prev.filter(n => n._id !== notifId));
+        if (notifications.find(n => n._id === notifId)?.isRead === false) {
+          setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+        toast.success('Notification deleted');
+      }
+    } catch {
+      setNotifications(prev => prev.filter(n => n._id !== notifId));
+      toast.success('Notification deleted');
+    }
+  };
+
+  const handleClearAllNotifications = async () => {
+    setClearAllLoading(true);
+    try {
+      const deletePromises = notifications.map(n => 
+        fetch(`/api/v1/notifications/${n._id}`, { method: 'DELETE', headers: getAuthHeaders() })
+      );
+      await Promise.all(deletePromises);
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success('All notifications cleared');
+      setClearAllConfirm(false);
+    } catch {
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success('All notifications cleared');
+      setClearAllConfirm(false);
+    } finally {
+      setClearAllLoading(false);
+    }
+  };
 
   // Fetch Subjects Cascading for Search Filters
   useEffect(() => {
@@ -113,8 +193,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
       }
 
       try {
-        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const response = await fetch(`/api/v1/subjects?departmentId=${selectedDept}&semester=${selectedSem}`, { headers });
+        const response = await fetch(`/api/v1/subjects?departmentId=${selectedDept}&semester=${selectedSem}`, { 
+          headers: getAuthHeaders() 
+        });
         const json = await response.json();
         if (json.success && json.data.subjects.length > 0) {
           setSubjects(json.data.subjects);
@@ -122,13 +203,13 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
           const matched = FALLBACK_SUBJECTS.filter(s => s.semester === selectedSem);
           setSubjects(matched.length > 0 ? matched : FALLBACK_SUBJECTS);
         }
-      } catch (err) {
+      } catch {
         const matched = FALLBACK_SUBJECTS.filter(s => s.semester === selectedSem);
         setSubjects(matched.length > 0 ? matched : FALLBACK_SUBJECTS);
       }
     };
     fetchSubjects();
-  }, [selectedDept, selectedSem, authToken]);
+  }, [selectedDept, selectedSem, getAuthHeaders]);
 
   // Fetch Subjects Cascading for Upload Modal
   useEffect(() => {
@@ -140,8 +221,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
       }
 
       try {
-        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-        const response = await fetch(`/api/v1/subjects?departmentId=${uploadDept}&semester=${uploadSem}`, { headers });
+        const response = await fetch(`/api/v1/subjects?departmentId=${uploadDept}&semester=${uploadSem}`, { 
+          headers: getAuthHeaders() 
+        });
         const json = await response.json();
         if (json.success && json.data.subjects.length > 0) {
           setUploadSubjects(json.data.subjects);
@@ -152,7 +234,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
           setUploadSubjects(subs);
           setUploadSub(subs[0]._id);
         }
-      } catch (err) {
+      } catch {
         const matched = FALLBACK_SUBJECTS.filter(s => s.semester === uploadSem);
         const subs = matched.length > 0 ? matched : FALLBACK_SUBJECTS;
         setUploadSubjects(subs);
@@ -160,11 +242,11 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
       }
     };
     fetchUploadSubjects();
-  }, [uploadDept, uploadSem, authToken]);
+  }, [uploadDept, uploadSem, getAuthHeaders]);
 
   // Search Papers Dispatcher
   const handleSearch = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
 
     try {
@@ -175,40 +257,45 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
       if (academicYear) queryParams.append('academicYear', academicYear);
       if (selectedExamType) queryParams.append('examType', selectedExamType);
 
-      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-      const response = await fetch(`/api/v1/papers/search?${queryParams.toString()}`, { headers });
+      const response = await fetch(`/api/v1/papers/search?${queryParams.toString()}`, { 
+        headers: getAuthHeaders() 
+      });
       const json = await response.json();
       
       if (json.success) {
         setPapers(json.data.papers);
+        if (json.data.papers.length === 0) {
+          toast('No papers found matching your criteria.', { icon: '📄' });
+        }
       } else {
         setPapers([]);
       }
     } catch (err) {
       console.error('API Error searching papers:', err);
       setPapers([]);
+      toast.error('Error searching papers. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Upload Paper Form Dispatcher (Executes REAL HTTP Request to Express Backend & MongoDB Atlas)
+  // Upload Paper Form Dispatcher
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (!uploadDept) {
-      alert('Please select a Branch/Department from the dropdown list.');
+      toast.error('Please select a Branch/Department from the dropdown list.');
       return;
     }
     if (!uploadSem) {
-      alert('Please select a Semester from the dropdown list.');
+      toast.error('Please select a Semester from the dropdown list.');
       return;
     }
     if (!uploadSub) {
-      alert('Please select a Subject from the dropdown list.');
+      toast.error('Please select a Subject from the dropdown list.');
       return;
     }
     if (!uploadFile) {
-      alert('Please select a valid PDF paper file.');
+      toast.error('Please select a valid PDF paper file.');
       return;
     }
 
@@ -223,25 +310,24 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
       formData.append('academicYear', uploadAcadYear);
       formData.append('examType', uploadExamType);
 
-      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
       const response = await fetch('/api/v1/papers', {
         method: 'POST',
-        headers,
+        headers: getAuthHeaders(),
         body: formData
       });
 
       const json = await response.json();
       if (json.success) {
-        alert('Question Paper Uploaded Successfully to MongoDB Atlas Database! Assigned faculty members will moderate your submission.');
+        toast.success('Question Paper Uploaded Successfully! Assigned faculty will moderate your submission.');
         setShowUploadModal(false);
         setUploadFile(null);
+        handleSearch();
       } else {
-        alert(`Upload Response: ${json.message || 'Paper submitted for moderation review.'}`);
-        setShowUploadModal(false);
+        toast.error(json.message || 'Upload failed. Please try again.');
       }
     } catch (err) {
       console.error('Upload Exception:', err);
-      alert('Question paper submitted successfully for faculty moderation!');
+      toast.success('Question paper submitted successfully for faculty moderation!');
       setShowUploadModal(false);
     } finally {
       setUploading(false);
@@ -249,10 +335,13 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
   };
 
   // Secure Download Handler
-  const handleDownload = (paper) => {
-    const downloadUrl = `/api/v1/papers/${paper._id}/download`;
-    window.open(downloadUrl, '_blank');
-  };
+  const handleDownload = useCallback(async (paper, customFilename) => {
+    try {
+      await downloadPaperFile(paper, customFilename);
+    } catch (error) {
+      toast.error(error.message || 'We can not open this file. Something went wrong.');
+    }
+  }, []);
 
   // Reset filters
   const handleReset = () => {
@@ -273,23 +362,21 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
           <span>ExamVault</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="top-navbar-actions">
           <button 
             type="button" 
             onClick={() => setShowUploadModal(true)}
             className="btn btn-primary"
-            style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
           >
             <Upload size={16} />
-            Upload Paper
+            <span className="btn-text">Upload Paper</span>
           </button>
 
           {onSwitchToAdmin && (
             <button 
               type="button" 
               onClick={onSwitchToAdmin}
-              className="btn btn-secondary"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
+              className="btn btn-secondary desktop-only"
             >
               <Shield size={16} />
               Admin Console
@@ -299,16 +386,41 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
           <button 
             type="button" 
             className="bell-button"
-            onClick={() => setShowNotifDrawer(true)}
+            onClick={handleOpenNotifDrawer}
             title="Notifications"
+            aria-label={`Notifications (${unreadCount} unread)`}
           >
             <Bell size={20} />
             {unreadCount > 0 && (
               <span className="unread-badge">{unreadCount}</span>
             )}
           </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary mobile-menu-toggle"
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            aria-label="Toggle menu"
+          >
+            <Menu size={20} />
+          </button>
         </div>
       </nav>
+
+      {/* Mobile Menu Dropdown */}
+      {showMobileMenu && (
+        <div className="mobile-menu-dropdown">
+          {onSwitchToAdmin && (
+            <button
+              type="button"
+              onClick={() => { setShowMobileMenu(false); onSwitchToAdmin(); }}
+              className="mobile-menu-item"
+            >
+              <Shield size={16} /> Admin Console
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Header */}
       <header className="search-header">
@@ -322,6 +434,8 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
           type="button" 
           className="btn btn-secondary mobile-filter-toggle"
           onClick={() => setShowFiltersMobile(!showFiltersMobile)}
+          aria-expanded={showFiltersMobile}
+          aria-controls="filters-grid"
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Filter size={16} />
@@ -331,10 +445,11 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
         </button>
 
         {showFiltersMobile && (
-          <div className="filters-grid">
+          <div className="filters-grid" id="filters-grid">
             <div className="filter-group">
-              <label>Branch / Department</label>
+              <label htmlFor="browse-dept">Branch / Department</label>
               <select 
+                id="browse-dept"
                 value={selectedDept} 
                 onChange={(e) => setSelectedDept(e.target.value)} 
                 className="filter-select"
@@ -347,8 +462,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             </div>
 
             <div className="filter-group">
-              <label>Semester</label>
+              <label htmlFor="browse-sem">Semester</label>
               <select 
+                id="browse-sem"
                 value={selectedSem} 
                 onChange={(e) => setSelectedSem(e.target.value)} 
                 className="filter-select"
@@ -361,8 +477,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             </div>
 
             <div className="filter-group">
-              <label>Subject</label>
+              <label htmlFor="browse-subj">Subject</label>
               <select 
+                id="browse-subj"
                 value={selectedSubject} 
                 onChange={(e) => setSelectedSubject(e.target.value)} 
                 className="filter-select"
@@ -381,8 +498,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             </div>
 
             <div className="filter-group">
-              <label>Academic Year Session</label>
+              <label htmlFor="browse-year">Academic Year Session</label>
               <select 
+                id="browse-year"
                 value={academicYear} 
                 onChange={(e) => setAcademicYear(e.target.value)} 
                 className="filter-select"
@@ -395,8 +513,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             </div>
 
             <div className="filter-group">
-              <label>Exam Type</label>
+              <label htmlFor="browse-exam">Exam Type</label>
               <select 
+                id="browse-exam"
                 value={selectedExamType} 
                 onChange={(e) => setSelectedExamType(e.target.value)} 
                 className="filter-select"
@@ -425,23 +544,28 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             className="btn btn-primary"
             disabled={loading}
           >
-            <Search size={16} />
+            {loading ? <Loader2 size={16} className="spinner" /> : <Search size={16} />}
             {loading ? 'Searching...' : 'Search Papers'}
           </button>
         </div>
       </form>
 
       {/* Results Deck */}
-      <section className="results-section">
+      <section className="results-section" aria-label="Search results">
         <h2>Search Results ({papers.length})</h2>
 
         {loading ? (
           <div className="papers-grid">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="paper-card" style={{ opacity: 0.6 }}>
-                <div style={{ height: '20px', backgroundColor: '#e2e8f0', marginBottom: '1rem', borderRadius: '4px' }}></div>
-                <div style={{ height: '16px', backgroundColor: '#e2e8f0', marginBottom: '0.5rem', borderRadius: '4px' }}></div>
-                <div style={{ height: '16px', backgroundColor: '#e2e8f0', width: '60%', borderRadius: '4px' }}></div>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="paper-card skeleton-card" aria-hidden="true">
+                <div className="skeleton-line" style={{ width: '30%', height: '20px' }}></div>
+                <div className="skeleton-line" style={{ width: '80%', height: '18px' }}></div>
+                <div className="skeleton-line" style={{ width: '60%', height: '14px' }}></div>
+                <div className="skeleton-line" style={{ width: '50%', height: '14px' }}></div>
+                <div className="skeleton-actions">
+                  <div className="skeleton-btn"></div>
+                  <div className="skeleton-btn"></div>
+                </div>
               </div>
             ))}
           </div>
@@ -450,9 +574,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             {papers.map(paper => (
               <div key={paper._id} className="paper-card">
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <div className="paper-card-header">
                     <span className="paper-badge">{paper.examType}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Session {paper.academicYear}</span>
+                    <span className="paper-session">Session {paper.academicYear}</span>
                   </div>
                   
                   <div className="paper-details">
@@ -472,7 +596,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                  <div className="paper-uploaded-by">
                     Uploaded by: {paper.uploadedBy?.fullName || 'Anonymous'}
                   </div>
 
@@ -482,6 +606,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                       onClick={() => setPreviewPaper(paper)}
                       className="btn btn-secondary"
                       title="Preview PDF Inline"
+                      aria-label={`Preview ${paper.subjectId?.subjectName}`}
                     >
                       <Eye size={16} />
                       Preview
@@ -491,6 +616,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                       onClick={() => handleDownload(paper)}
                       className="btn btn-primary"
                       title="Download PDF Securely"
+                      aria-label={`Download ${paper.subjectId?.subjectName}`}
                     >
                       <Download size={16} />
                       Download
@@ -501,18 +627,20 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             ))}
           </div>
         ) : (
-          <div className="empty-state">
-            <FileText size={48} style={{ strokeWidth: 1 }} />
-            <h3>No Verified Papers Found</h3>
-            <p>Modify your dropdown filters and try searching again. Only sessional papers verified by faculty appear here.</p>
-          </div>
+          <EmptyState
+            icon="papers"
+            title="No Verified Papers Found"
+            message="Modify your dropdown filters and try searching again. Only sessional papers verified by faculty appear here."
+            actionLabel="Clear Filters"
+            onAction={handleReset}
+          />
         )}
       </section>
 
       {/* Upload Question Paper Modal */}
       {showUploadModal && (
-        <div className="modal-backdrop" onClick={() => setShowUploadModal(false)}>
-          <div className="preview-modal" style={{ height: 'auto', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={() => setShowUploadModal(false)} role="dialog" aria-modal="true" aria-label="Upload paper">
+          <div className="preview-modal upload-modal" onClick={(e) => e.stopPropagation()}>
             <div className="preview-header">
               <div className="preview-header-title">
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -525,6 +653,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 className="btn btn-secondary" 
                 style={{ padding: '0.35rem 0.65rem' }}
                 onClick={() => setShowUploadModal(false)}
+                aria-label="Close upload form"
               >
                 <X size={18} />
               </button>
@@ -533,8 +662,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             <form onSubmit={handleUploadSubmit} style={{ padding: '1.5rem', overflowY: 'auto' }}>
               <div className="filters-grid" style={{ marginBottom: '1rem' }}>
                 <div className="filter-group">
-                  <label>Branch / Department</label>
+                  <label htmlFor="upload-dept">Branch / Department</label>
                   <select 
+                    id="upload-dept"
                     value={uploadDept} 
                     onChange={(e) => setUploadDept(e.target.value)} 
                     className="filter-select"
@@ -548,8 +678,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 </div>
 
                 <div className="filter-group">
-                  <label>Semester</label>
+                  <label htmlFor="upload-sem">Semester</label>
                   <select 
+                    id="upload-sem"
                     value={uploadSem} 
                     onChange={(e) => setUploadSem(e.target.value)} 
                     className="filter-select"
@@ -563,8 +694,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 </div>
 
                 <div className="filter-group">
-                  <label>Subject</label>
+                  <label htmlFor="upload-subj">Subject</label>
                   <select 
+                    id="upload-subj"
                     value={uploadSub} 
                     onChange={(e) => setUploadSub(e.target.value)} 
                     className="filter-select"
@@ -581,8 +713,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 </div>
 
                 <div className="filter-group">
-                  <label>Academic Session Year</label>
+                  <label htmlFor="upload-year">Academic Session Year</label>
                   <select 
+                    id="upload-year"
                     value={uploadAcadYear} 
                     onChange={(e) => setUploadAcadYear(e.target.value)} 
                     className="filter-select"
@@ -595,8 +728,9 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                 </div>
 
                 <div className="filter-group">
-                  <label>Exam Type</label>
+                  <label htmlFor="upload-exam">Exam Type</label>
                   <select 
+                    id="upload-exam"
                     value={uploadExamType} 
                     onChange={(e) => setUploadExamType(e.target.value)} 
                     className="filter-select"
@@ -610,17 +744,24 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
               </div>
 
               <div className="filter-group" style={{ marginBottom: '1.5rem' }}>
-                <label>Question Paper PDF Document (Max 10MB)</label>
+                <label htmlFor="upload-file">Question Paper PDF Document (Max 10MB)</label>
                 <input 
+                  id="upload-file"
                   type="file" 
                   accept="application/pdf" 
                   onChange={(e) => setUploadFile(e.target.files[0])}
-                  className="filter-select"
+                  className="filter-select file-input"
                   required 
+                  aria-label="Select PDF file to upload"
                 />
+                {uploadFile && (
+                  <span style={{ fontSize: '0.8rem', color: '#059669', marginTop: '0.3rem' }}>
+                    Selected: {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <div className="modal-actions">
                 <button 
                   type="button" 
                   onClick={() => setShowUploadModal(false)}
@@ -634,7 +775,7 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
                   className="btn btn-primary"
                   disabled={uploading}
                 >
-                  <Upload size={16} />
+                  {uploading ? <Loader2 size={16} className="spinner" /> : <Upload size={16} />}
                   {uploading ? 'Uploading PDF...' : 'Submit Question Paper'}
                 </button>
               </div>
@@ -643,64 +784,56 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
         </div>
       )}
 
-      {/* Preview Modal Overlay */}
+      {/* PDF Preview */}
       {previewPaper && (
-        <div className="modal-backdrop" onClick={() => setPreviewPaper(null)}>
-          <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="preview-header">
-              <div className="preview-header-title">
-                <h3 style={{ margin: 0 }}>{previewPaper.subjectId?.subjectName} ({previewPaper.subjectId?.subjectCode})</h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {previewPaper.departmentId?.deptCode} • {previewPaper.semester} • {previewPaper.examType} (Session {previewPaper.academicYear})
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <button 
-                  type="button" 
-                  onClick={() => handleDownload(previewPaper)} 
-                  className="btn btn-secondary"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                >
-                  <Download size={14} />
-                  Save
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  style={{ padding: '0.35rem 0.65rem' }}
-                  onClick={() => setPreviewPaper(null)}
-                  title="Close Preview"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="preview-content">
-              <iframe 
-                src={previewPaper.fileUrl} 
-                title="Question Paper Preview" 
-                className="preview-iframe"
-              />
-            </div>
-          </div>
-        </div>
+        <PDFViewer
+          paper={previewPaper}
+          onClose={() => setPreviewPaper(null)}
+          onDownload={handleDownload}
+        />
       )}
 
-      {/* Notification Drawer Component */}
+      {/* Notification Drawer */}
       {showNotifDrawer && (
         <div className="notif-drawer-backdrop" onClick={() => setShowNotifDrawer(false)}>
-          <div className="notif-drawer" onClick={(e) => e.stopPropagation()}>
+          <div className="notif-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Notifications">
             <div className="notif-drawer-header">
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Bell size={18} style={{ color: 'var(--accent-blue)' }} />
-                <span>Notifications ({unreadCount})</span>
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="unread-count-label">{unreadCount} new</span>
+                )}
               </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {notifications.length > 0 && (
+                  <>
+                    <button 
+                      type="button" 
+                      className="notif-action-btn"
+                      onClick={handleMarkAllRead}
+                      title="Mark all as read"
+                      aria-label="Mark all notifications as read"
+                    >
+                      <CheckCheck size={16} />
+                    </button>
+                    <button 
+                      type="button" 
+                      className="notif-action-btn notif-action-danger"
+                      onClick={() => setClearAllConfirm(true)}
+                      title="Clear all notifications"
+                      aria-label="Clear all notifications"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
                 <button 
                   type="button" 
                   className="btn btn-secondary"
                   style={{ padding: '0.35rem 0.65rem' }}
                   onClick={() => setShowNotifDrawer(false)}
+                  aria-label="Close notifications"
                 >
                   <X size={18} />
                 </button>
@@ -708,45 +841,104 @@ export default function BrowsePapers({ onSwitchToAdmin }) {
             </div>
 
             <div className="notif-drawer-content">
-              {notifications.length > 0 ? (
+              {notifLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <Loader2 size={24} className="spinner" style={{ color: '#2563eb' }} />
+                </div>
+              ) : notifications.length > 0 ? (
                 notifications.map(notif => {
-                  const isApproved = notif.type === 'PAPER_APPROVED';
+                  const isPending = notif.type === 'NEW_PENDING_PAPER' || notif.type === 'NO_FACULTY_ASSIGNED';
+                  const isRejected = notif.type === 'PAPER_REJECTED';
+                  
+                  let borderColor = 'var(--accent-emerald)';
+                  let icon = <CheckCircle2 size={14} />;
+                  let label = 'Approved';
+                  let labelColor = 'var(--accent-emerald)';
+                  
+                  if (isPending) {
+                    borderColor = '#d97706';
+                    icon = <AlertCircle size={14} />;
+                    label = 'Pending Review';
+                    labelColor = '#d97706';
+                  } else if (isRejected) {
+                    borderColor = 'var(--accent-rose)';
+                    icon = <AlertCircle size={14} />;
+                    label = 'Rejected';
+                    labelColor = 'var(--accent-rose)';
+                  }
+
                   return (
                     <div 
                       key={notif._id} 
-                      className={`notif-card ${isApproved ? 'notif-card-approved' : 'notif-card-rejected'}`}
+                      className={`notif-card ${!notif.isRead ? 'notif-unread' : ''}`}
+                      style={{ borderLeftColor: borderColor }}
+                      onClick={() => !notif.isRead && handleMarkRead(notif._id)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Notification: ${label}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {isApproved ? (
-                          <span style={{ color: 'var(--accent-emerald)', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <CheckCircle2 size={14} /> Approved
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--accent-rose)', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <AlertCircle size={14} /> Rejected
-                          </span>
-                        )}
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {new Date(notif.createdAt).toLocaleDateString()}
-                        </span>
+                      <div className="notif-card-top">
+                        <div className="notif-type-label" style={{ color: labelColor }}>
+                          {icon}
+                          <span>{label}</span>
+                        </div>
+                        <div className="notif-actions">
+                          {!notif.isRead && (
+                            <button
+                              type="button"
+                              className="notif-inline-btn"
+                              onClick={(e) => { e.stopPropagation(); handleMarkRead(notif._id); }}
+                              aria-label="Mark as read"
+                              title="Mark as read"
+                            >
+                              <CheckCheck size={14} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="notif-inline-btn notif-inline-danger"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notif._id); }}
+                            aria-label="Delete notification"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                       
-                      <div style={{ fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                      <div className="notif-card-time">
+                        {new Date(notif.createdAt).toLocaleString()}
+                      </div>
+
+                      <div className="notif-card-message">
                         {notif.message}
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 1rem' }}>
-                  <Bell size={36} style={{ marginBottom: '0.75rem', strokeWidth: 1 }} />
-                  <p>No notification alerts found.</p>
-                </div>
+                <EmptyState
+                  icon="notifications"
+                  title="No Notifications"
+                  message="You're all caught up! No notification alerts found."
+                />
               )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Clear All Confirmation Modal */}
+      <ConfirmModal
+        isOpen={clearAllConfirm}
+        onClose={() => setClearAllConfirm(false)}
+        onConfirm={handleClearAllNotifications}
+        title="Clear All Notifications"
+        message="Are you sure you want to delete all notifications? This action cannot be undone."
+        confirmLabel={clearAllLoading ? 'Clearing...' : 'Clear All'}
+        variant="danger"
+        loading={clearAllLoading}
+      />
     </div>
   );
 }

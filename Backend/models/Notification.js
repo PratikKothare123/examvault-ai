@@ -7,6 +7,12 @@ const notificationSchema = new mongoose.Schema({
     required: [true, 'Recipient reference is required'],
     index: true
   },
+  senderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
   paperId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Paper',

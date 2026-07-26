@@ -29,3 +29,11 @@ export const markAllNotificationsReadService = async (recipientId) => {
   );
   return true;
 };
+
+export const deleteNotificationService = async (notificationId, recipientId) => {
+  const notification = await Notification.findOneAndDelete({ _id: notificationId, recipientId });
+  if (!notification) {
+    throw new ApiError(404, 'Notification not found or access denied.');
+  }
+  return notification;
+};

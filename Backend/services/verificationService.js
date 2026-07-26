@@ -4,9 +4,18 @@ import FacultyAssignment from '../models/FacultyAssignment.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import ApiError from '../utils/apiError.js';
-import { PAPER_STATUS } from '../constants/paper.constants.js';
+import { PAPER_STATUS, ROLES } from '../constants/paper.constants.js';
 
 export const getPendingPapersForFacultyService = async (facultyUserId) => {
+  const facultyUser = await User.findById(facultyUserId);
+  if (facultyUser?.role === ROLES.ADMIN) {
+    return await Paper.find({ status: PAPER_STATUS.PENDING })
+      .populate('uploadedBy', 'fullName email reputationPoints')
+      .populate('subjectId', 'subjectCode subjectName semester')
+      .populate('departmentId', 'deptCode deptName')
+      .sort({ createdAt: 1 });
+  }
+
   // Check assigned subjects via Subject.assignedFaculty array & legacy FacultyAssignment model
   const [assignedSubjects, legacyAssignments] = await Promise.all([
     Subject.find({ assignedFaculty: facultyUserId }).select('_id'),
@@ -19,7 +28,6 @@ export const getPendingPapersForFacultyService = async (facultyUserId) => {
   ];
 
   // If no subjects specifically assigned, fallback to faculty department papers
-  const facultyUser = await User.findById(facultyUserId);
   const query = { status: PAPER_STATUS.PENDING };
   
   if (subjectIds.length > 0) {
@@ -36,6 +44,15 @@ export const getPendingPapersForFacultyService = async (facultyUserId) => {
 };
 
 export const getApprovedPapersForFacultyService = async (facultyUserId) => {
+  const facultyUser = await User.findById(facultyUserId);
+  if (facultyUser?.role === ROLES.ADMIN) {
+    return await Paper.find({ status: PAPER_STATUS.APPROVED })
+      .populate('uploadedBy', 'fullName email reputationPoints')
+      .populate('subjectId', 'subjectCode subjectName semester')
+      .populate('departmentId', 'deptCode deptName')
+      .sort({ updatedAt: -1 });
+  }
+
   const [assignedSubjects, legacyAssignments] = await Promise.all([
     Subject.find({ assignedFaculty: facultyUserId }).select('_id'),
     FacultyAssignment.find({ facultyUserId }).select('subjectId')
@@ -46,7 +63,6 @@ export const getApprovedPapersForFacultyService = async (facultyUserId) => {
     ...legacyAssignments.map(a => a.subjectId)
   ];
 
-  const facultyUser = await User.findById(facultyUserId);
   const query = { status: PAPER_STATUS.APPROVED };
 
   if (subjectIds.length > 0) {
@@ -73,8 +89,27 @@ export const verifyPaperService = async (paperId, facultyUserId, { action, rejec
   }
 
   const facultyUser = await User.findById(facultyUserId);
+  if (!facultyUser) {
+    throw new ApiError(404, 'Reviewer account not found.');
+  }
+
+  if (facultyUser.role !== ROLES.ADMIN) {
+    const [subjectAssignment, legacyAssignment] = await Promise.all([
+      Subject.exists({ _id: paper.subjectId, assignedFaculty: facultyUserId }),
+      FacultyAssignment.exists({ subjectId: paper.subjectId, facultyUserId })
+    ]);
+
+    const matchesPaperFaculty = paper.assignedFacultyId?.toString() === facultyUserId;
+    const matchesDepartmentFallback = !paper.assignedFacultyId && facultyUser.department?.toString() === paper.departmentId.toString();
+
+    if (!subjectAssignment && !legacyAssignment && !matchesPaperFaculty && !matchesDepartmentFallback) {
+      throw new ApiError(403, 'Forbidden. This paper is not assigned to your moderation queue.');
+    }
+  }
+
   await paper.populate('subjectId', 'subjectCode subjectName');
 
+  paper.reviewedBy = facultyUserId;
   paper.verifiedBy = facultyUserId;
   paper.verifiedAt = new Date();
 
@@ -90,6 +125,7 @@ export const verifyPaperService = async (paperId, facultyUserId, { action, rejec
 
     await Notification.create({
       recipientId: paper.uploadedBy,
+      senderId: facultyUserId,
       paperId: paper._id,
       type: 'PAPER_APPROVED',
       message: `Your question paper for ${paper.subjectId.subjectName} (${paper.subjectId.subjectCode}) ${paper.examType} ${paper.academicYear} has been approved by ${facultyUser?.fullName || 'Faculty'}.`
@@ -106,6 +142,7 @@ export const verifyPaperService = async (paperId, facultyUserId, { action, rejec
 
     await Notification.create({
       recipientId: paper.uploadedBy,
+      senderId: facultyUserId,
       paperId: paper._id,
       type: 'PAPER_REJECTED',
       message: `Your submission for ${paper.subjectId.subjectName} (${paper.subjectId.subjectCode}) was rejected: "${rejectionReason.trim()}".`

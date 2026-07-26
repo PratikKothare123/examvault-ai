@@ -98,6 +98,11 @@ const paperSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   verifiedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

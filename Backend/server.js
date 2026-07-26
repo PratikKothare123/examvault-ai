@@ -70,6 +70,16 @@ app.all('*', (req, res, next) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running in [${process.env.NODE_ENV}] mode on port [${PORT}]`);
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Retrying on port ${Number(PORT) + 1}...`);
+    app.listen(Number(PORT) + 1);
+  } else {
+    console.error(err);
+  }
 });

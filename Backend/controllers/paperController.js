@@ -1,8 +1,10 @@
 import { uploadPaperService, getPaperByIdService } from '../services/paperService.js';
+import { Readable } from 'node:stream';
 import Paper from '../models/Paper.js';
 import { sendResponse } from '../utils/responseFormatter.js';
 import ApiError from '../utils/apiError.js';
 import { ROLES, PAPER_STATUS } from '../constants/paper.constants.js';
+import { buildPaperDownloadFileName } from '../utils/paperFileName.js';
 
 export const uploadPaper = async (req, res, next) => {
   try {
@@ -62,12 +64,16 @@ export const downloadPaper = async (req, res, next) => {
     await Paper.findByIdAndUpdate(id, { $inc: { downloadCount: 1 } });
 
     // Format standardized filename attachment header
-    const subjectCode = paper.subjectId?.subjectCode || 'PAPER';
-    const fileName = `${subjectCode}_${paper.examType}_${paper.paperYear}.pdf`;
+    const fileName = buildPaperDownloadFileName(paper);
+
+    const storageResponse = await fetch(paper.fileUrl);
+    if (!storageResponse.ok || !storageResponse.body) {
+      throw new ApiError(502, 'We can not open this file. Something went wrong while reading the stored PDF.');
+    }
 
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', 'application/pdf');
-    return res.redirect(paper.fileUrl);
+    return Readable.fromWeb(storageResponse.body).pipe(res);
   } catch (error) {
     next(error);
   }

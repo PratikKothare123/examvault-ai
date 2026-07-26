@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { GraduationCap, LogIn, UserPlus, Key, Mail, Building2, User, ShieldAlert } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { GraduationCap, ShieldAlert } from 'lucide-react';
 import './Login.css';
 
 const DEMO_CREDENTIALS = {
@@ -28,7 +29,7 @@ export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [department, setDepartment] = useState('CSE');
+  const [department] = useState('CSE');
   const [role, setRole] = useState('Student');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -77,14 +78,16 @@ export default function Login({ onLoginSuccess }) {
         const user = json.data.user;
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
-        alert(isRegister ? 'Account Registered Successfully in MongoDB Atlas!' : 'Logged in successfully!');
+        toast.success(isRegister ? 'Account Registered Successfully!' : 'Logged in successfully!');
         onLoginSuccess(user, token);
       } else {
         setErrorMsg(json.message || 'Authentication failed. Please check your credentials.');
+        toast.error(json.message || 'Authentication failed.');
       }
     } catch (err) {
       console.error('Auth Exception:', err);
       setErrorMsg('Unable to connect to server. Please ensure the backend server is running on port 5000.');
+      toast.error('Unable to connect to server. Please ensure the backend server is running.');
     } finally {
       setLoading(false);
     }

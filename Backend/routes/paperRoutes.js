@@ -31,11 +31,11 @@ router.post(
 router.get('/search', requireAuth, searchPapers);
 
 // Faculty moderation queues
-router.get('/faculty/pending', requireAuth, requireRole(ROLES.FACULTY), getPendingQueue);
-router.get('/faculty/approved', requireAuth, requireRole(ROLES.FACULTY), getApprovedHistory);
+router.get('/faculty/pending', requireAuth, requireRole(ROLES.FACULTY, ROLES.ADMIN), getPendingQueue);
+router.get('/faculty/approved', requireAuth, requireRole(ROLES.FACULTY, ROLES.ADMIN), getApprovedHistory);
 
 // Verify specific paper status
-router.patch('/:id/verify', requireAuth, requireRole(ROLES.FACULTY), validatePaperId, validateVerifyAction, verifyPaper);
+router.patch('/:id/verify', requireAuth, requireRole(ROLES.FACULTY, ROLES.ADMIN), validatePaperId, validateVerifyAction, verifyPaper);
 
 // Secure paper download endpoint
 router.get('/:id/download', requireAuth, validatePaperId, downloadPaper);

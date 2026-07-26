@@ -1,7 +1,8 @@
 import { 
   getUserNotificationsService, 
   markNotificationReadService, 
-  markAllNotificationsReadService 
+  markAllNotificationsReadService,
+  deleteNotificationService
 } from '../services/notificationService.js';
 import { sendResponse } from '../utils/responseFormatter.js';
 
@@ -28,6 +29,16 @@ export const markAllNotificationsRead = async (req, res, next) => {
   try {
     await markAllNotificationsReadService(req.user.userId);
     return sendResponse(res, 200, 'All notifications marked as read', {});
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteNotification = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await deleteNotificationService(id, req.user.userId);
+    return sendResponse(res, 200, 'Notification deleted successfully');
   } catch (error) {
     next(error);
   }
