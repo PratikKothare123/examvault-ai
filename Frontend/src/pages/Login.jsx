@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { GraduationCap, ShieldAlert } from 'lucide-react';
+import { GraduationCap, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import './Login.css';
 
 const DEMO_CREDENTIALS = {
@@ -28,6 +28,7 @@ export default function Login({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [department] = useState('CSE');
   const [role, setRole] = useState('Student');
@@ -157,15 +158,27 @@ export default function Login({ onLoginSuccess }) {
           </div>
 
           <div className="form-group">
-            <label>Password (Min 6 characters)</label>
-            <input 
-              type="password" 
-              className="form-input"
-              placeholder="••••••••" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <label htmlFor="password-input">Password (Min 6 characters)</label>
+            <div className="password-input-wrapper">
+              <input 
+                id="password-input"
+                type={showPassword ? "text" : "password"} 
+                className="form-input password-input"
+                placeholder="••••••••" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {isRegister && (

@@ -55,19 +55,3 @@ npm run dev
 ```
 
 ---
-
-## 📚 API Endpoint Matrix
-
-| Method | Endpoint | Access Level | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | Public | Register new institutional account (`@sbjit.edu.in`). |
-| `POST` | `/api/v1/auth/login` | Public | Authenticate user and receive JWT Bearer Token. |
-| `GET` | `/api/v1/papers/search` | Student / Faculty / Admin | Cascading query search for verified papers. |
-| `POST` | `/api/v1/papers` | Student | Upload question paper (Multer + Magic Bytes + Cloudinary). |
-| `GET` | `/api/v1/papers/:id/download` | Student / Faculty / Admin | Download paper with attachment headers. |
-| `GET` | `/api/v1/papers/faculty/pending` | Faculty | Retrieve moderation queue for assigned subjects. |
-| `PATCH` | `/api/v1/papers/:id/verify` | Faculty | Approve paper or Reject with feedback. |
-| `GET` | `/api/v1/notifications` | Authenticated | Retrieve in-app notifications and unread badge counts. |
-| `GET` | `/api/v1/admin/stats` | Admin | Aggregate system metrics (departments, subjects, users, papers). |
-| `PATCH` | `/api/v1/admin/users/:id/role` | Admin | Change user role designation. |
-| `PATCH` | `/api/v1/admin/papers/:id/override` | Admin | Force override paper moderation status. |
