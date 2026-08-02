@@ -139,7 +139,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
           setUploadSubjects(subs);
           setUploadSub(subs[0]._id);
         }
-      } catch (error) {
+      } catch {
         const matched = FALLBACK_SUBJECTS.filter(
           (s) => s.semester === uploadSem
         );
@@ -180,7 +180,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
       } else {
         toast.error(json.message);
       }
-    } catch (err) {
+    } catch {
       toast.success('Subject assigned to Faculty successfully!');
     }
   };
@@ -207,7 +207,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
       } else {
         toast.error(json.message);
       }
-    } catch (err) {
+    } catch {
       toast.success('Subject created successfully!');
     }
   };
@@ -254,7 +254,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
       } else {
         toast.error(json.message);
       }
-    } catch (err) {
+    } catch {
       toast.success('Question paper submitted for moderation!');
     } finally {
       setUploading(false);
@@ -277,7 +277,7 @@ export default function AdminDashboard({ onSwitchToStudentPortal }) {
         setPapersList(prev => prev.filter(p => p._id !== id));
         toast.success('Paper deleted successfully.');
       }
-    } catch (err) {
+    } catch {
       if (type === 'user') setUsers(prev => prev.filter(u => u._id !== id));
       if (type === 'subject') setSubjectsList(prev => prev.filter(s => s._id !== id));
       if (type === 'paper') setPapersList(prev => prev.filter(p => p._id !== id));

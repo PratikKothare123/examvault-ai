@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, ExternalLink, Download, Loader2, AlertCircle } from 'lucide-react';
+import { downloadPaperFile } from '../utils/paperDownload.js';
 
 const PDF_VIEWER_STYLES = `
 .pdf-viewer-modal {
@@ -234,13 +235,18 @@ if (typeof document !== 'undefined') {
 
 export default function PDFViewer({ paper, onClose, onDownload }) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(!paper?.fileUrl);
+  const [error, setError] = useState(!paper?._id);
   const [zoom, setZoom] = useState(100);
   const [page, setPage] = useState(1);
   const previewTimeoutRef = useRef(null);
 
+  const token = localStorage.getItem('token') || '';
+  const previewUrl = paper?._id
+    ? `/api/v1/papers/${paper._id}/download?inline=true${token ? `&token=${encodeURIComponent(token)}` : ''}`
+    : paper?.fileUrl || '';
+
   useEffect(() => {
-    if (!paper?.fileUrl) {
+    if (!previewUrl) {
       setLoading(false);
       setError(true);
       return undefined;
@@ -254,7 +260,7 @@ export default function PDFViewer({ paper, onClose, onDownload }) {
     }, 12000);
 
     return () => window.clearTimeout(previewTimeoutRef.current);
-  }, [paper?.fileUrl]);
+  }, [previewUrl]);
 
   const handleIframeLoad = useCallback(() => {
     window.clearTimeout(previewTimeoutRef.current);
@@ -286,14 +292,13 @@ export default function PDFViewer({ paper, onClose, onDownload }) {
     if (onDownload) {
       onDownload(paper, fileName);
     } else {
-      const downloadUrl = `/api/v1/papers/${paper._id}/download`;
-      window.open(downloadUrl, '_blank');
+      downloadPaperFile(paper, fileName);
     }
   };
 
   const handleOpenNewTab = () => {
-    if (paper?.fileUrl) {
-      window.open(paper.fileUrl, '_blank');
+    if (previewUrl) {
+      window.open(previewUrl, '_blank');
     }
   };
 
@@ -415,7 +420,7 @@ export default function PDFViewer({ paper, onClose, onDownload }) {
           )}
 
           <iframe
-            src={paper?.fileUrl}
+            src={previewUrl}
             title={`${paper?.subjectId?.subjectName} PDF Preview`}
             style={{
               width: zoom === 100 ? '100%' : `${zoom}%`,
@@ -432,4 +437,3 @@ export default function PDFViewer({ paper, onClose, onDownload }) {
     </div>
   );
 }
-
