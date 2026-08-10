@@ -135,3 +135,29 @@ Faculty
 Admin
 
 Each role has different permissions and protected routes.
+
+```
+###
+## 👨‍💻 Developer
+Pratik D. Kothare
+
+# Final Year CSE Student
+S. B. Jain Institute of Technology, Management & Research, Nagpur
+
+## Full Stack Developer | MERN | AI Enthusiast
+
+### ❤️ Built With Purpose
+
+ExamVault was created to solve a real problem experienced by students during examination time.
+
+Making previous year question papers easier to find, verify, and access.
+
+# Made with ❤️ by Pratik D. Kothare
+
+##📬 Feedback & Contribution
+
+If you have suggestions, feature ideas, or improvements, feel free to contribute to this project.
+
+Your feedback can help make ExamVault better for students and faculty.
+
+⭐ If you find this project useful, consider giving the repository a star!
