@@ -136,7 +136,7 @@ Admin
 
 Each role has different permissions and protected routes.
 
-```
+
 ###
 ## 👨‍💻 Developer
 Pratik D. Kothare
